@@ -1,0 +1,62 @@
+# Apify API 연결 가이드
+
+## 1. 오류 해결 방법
+
+### 404 Not Found 오류
+- 원인: 잘못된 엔드포인트 URL 또는 존재하지 않는 액터 ID
+- 해결 방법: 
+  - 액터 ID의 슬래시(/)를 물결표(~)로 변환: `actor_id_encoded = APIFY_ACTOR_ID.replace('/', '~')`
+  - 올바른 엔드포인트 사용: `/acts/{actor_id_encoded}/run-sync-get-dataset-items`
+
+### 400 Bad Request 오류
+- 원인: 잘못된 요청 형식 또는 파라미터
+- 해결 방법:
+  - 토큰을 URL 쿼리 파라미터로 전달: `api_url_with_token = f"{api_url}?token={APIFY_TOKEN}"`
+  - 요청 파라미터 추가: `params = {"memory": 4096, "timeout": 300}`
+  - Content-Type 헤더 설정: `headers = {"Content-Type": "application/json"}`
+
+### 암호화 키 형식 오류
+- 원인: Fernet 암호화에는 32바이트 URL-safe base64로 인코딩된 키가 필요
+- 해결 방법:
+  - 올바른 형식의 키 생성: `ENCRYPTION_KEY=cHVYLXFQVXItcVhVci1xWFVyLXFYVXItcVhVcg==`
+  - 키 유효성 검사 코드 추가
+
+## 2. 올바른 API 호출 코드
+
+
+
+# YouTube 대본 추출기
+
+YouTube 영상의 정보와 자막을 추출하는 웹 애플리케이션입니다.
+
+## 주요 기능
+
+1. **YouTube 정보 추출**:
+   - 일반 URL과 숏폼 URL 모두 지원
+   - 썸네일, 제목, 조회수, 좋아요, 댓글 수, 태그, 설명, 자막 표시
+
+2. **자막 기능**:
+   - 자막 텍스트 복사 기능
+   - 자막 텍스트 파일 다운로드 기능
+
+3. **사용자 인증**:
+   - 카카오 로그인 지원
+   - 비로그인 사용자는 1회만 사용 가능
+   - 로그인 사용자는 하루 10회 사용 가능
+
+4. **보안**:
+   - 사용자 데이터 암호화 저장
+   - API 키는 환경 변수로 관리
+
+## 기술 스택
+
+- **백엔드**: Flask, SQLAlchemy
+- **프론트엔드**: HTML, CSS, JavaScript
+- **API**: Apify YouTube Scraper API
+- **인증**: 카카오 로그인 API
+- **데이터베이스**: SQLite
+- **암호화**: Fernet (cryptography)
+
+## 설치 및 실행
+
+1. 저장소 클론:

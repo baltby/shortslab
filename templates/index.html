@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>쇼츠랩.XYZ</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://developers.kakao.com/sdk/js/kakao.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* 헤더 및 네비게이션 스타일 개선 */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 1.5rem;
+            background: linear-gradient(135deg, #2563eb, #1e40af);
+            color: white;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        .site-logo {
+            display: flex;
+            align-items: center;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: white;
+            text-decoration: none;
+        }
+        
+        .site-logo:hover {
+            opacity: 0.9;
+        }
+        
+        .nav-menu {
+            position: relative;
+        }
+        
+        .menu-toggle {
+            background: rgba(255, 255, 255, 0.15);
+            border: none;
+            color: white;
+            font-size: 1.2rem;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.2s;
+        }
+        
+        .menu-toggle:hover {
+            background: rgba(255, 255, 255, 0.25);
+        }
+        
+        .menu-dropdown {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            min-width: 180px;
+            z-index: 100;
+            margin-top: 0.5rem;
+            overflow: hidden;
+            display: none;
+            animation: fadeIn 0.2s ease-out;
+        }
+        
+        .menu-dropdown.show {
+            display: block;
+        }
+        
+        .menu-item {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            color: #4b5563;
+            text-decoration: none;
+            transition: background-color 0.2s;
+            font-weight: 500;
+        }
+        
+        .menu-item i {
+            margin-right: 0.75rem;
+            font-size: 1rem;
+            width: 20px;
+            text-align: center;
+            color: #6b7280;
+        }
+        
+        .menu-item:hover {
+            background-color: #f3f4f6;
+        }
+        
+        .menu-item.logout {
+            color: #ef4444;
+            border-top: 1px solid #e5e7eb;
+        }
+        
+        .menu-item.logout i {
+            color: #ef4444;
+        }
+        
+        .menu-item.login {
+            color: #2563eb;
+        }
+        
+        .menu-item.login i {
+            color: #2563eb;
+        }
+        
+        /* 사용량 초과 오버레이 */
+        .usage-limit-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s, visibility 0.3s;
+        }
+        
+        .usage-limit-overlay.show {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        .usage-limit-modal {
+            background-color: white;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 400px;
+            padding: 2rem;
+            text-align: center;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+            transform: translateY(20px);
+            transition: transform 0.3s;
+            position: relative;
+        }
+        
+        .usage-limit-overlay.show .usage-limit-modal {
+            transform: translateY(0);
+        }
+        
+        .usage-limit-icon {
+            width: 70px;
+            height: 70px;
+            background-color: #fff7ed;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1.5rem;
+        }
+        
+        .usage-limit-icon i {
+            font-size: 2rem;
+            color: #f59e0b;
+        }
+        
+        .usage-limit-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 0.75rem;
+        }
+        
+        .usage-limit-message {
+            color: #4b5563;
+            margin-bottom: 1.5rem;
+            line-height: 1.5;
+        }
+        
+        .usage-limit-highlight {
+            color: #2563eb;
+            font-weight: 600;
+        }
+        
+        .usage-limit-button {
+            background-color: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 0.75rem 1.5rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+        }
+        
+        .usage-limit-button:hover {
+            background-color: #1d4ed8;
+        }
+        
+        .usage-limit-button i {
+            margin-right: 0.5rem;
+        }
+        
+        .admin-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #fef3c7;
+            color: #92400e;
+            font-size: 0.7rem;
+            font-weight: 600;
+            padding: 0.15rem 0.5rem;
+            border-radius: 9999px;
+            margin-left: 0.5rem;
+            vertical-align: middle;
+        }
+        
+        .admin-info {
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 1.25rem;
+            margin-top: 2rem;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+        
+        .admin-info h3 {
+            display: flex;
+            align-items: center;
+            font-size: 1.1rem;
+            color: #334155;
+            margin-top: 0;
+            margin-bottom: 1rem;
+        }
+        
+        .admin-info h3 i {
+            color: #f59e0b;
+            margin-right: 0.5rem;
+        }
+        
+        .admin-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+        
+        .admin-stat-card {
+            background-color: white;
+            border-radius: 6px;
+            padding: 1rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            border: 1px solid #f1f5f9;
+        }
+        
+        .admin-stat-title {
+            font-size: 0.85rem;
+            color: #64748b;
+            margin-bottom: 0.5rem;
+        }
+        
+        .admin-stat-value {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #334155;
+        }
+        
+        .admin-stat-subvalue {
+            font-size: 0.8rem;
+            color: #94a3b8;
+            margin-top: 0.25rem;
+        }
+        
+        .progress-container {
+            margin-top: 0.5rem;
+            height: 6px;
+            background-color: #e2e8f0;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        
+        .progress-bar-admin {
+            height: 100%;
+            background: linear-gradient(90deg, #3b82f6, #2563eb);
+            border-radius: 3px;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* 모바일 반응형 개선 */
+        @media (max-width: 768px) {
+            .form-group {
+                flex-direction: column;
+            }
+            
+            .form-group input {
+                width: 100%;
+                margin-bottom: 0.75rem;
+            }
+            
+            .form-group button {
+                width: 100%;
+            }
+            
+            .video-info {
+                flex-direction: column;
+            }
+            
+            .thumbnail-container {
+                width: 100%;
+                margin-bottom: 1rem;
+            }
+            
+            .info-container {
+                width: 100%;
+            }
+            
+            .admin-stats {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <a href="{{ url_for('index') }}" class="site-logo">
+                <i class="fas fa-play-circle" style="margin-right: 0.5rem;"></i>
+                쇼츠랩.XYZ
+                {% if is_admin %}
+                <span class="admin-badge">관리자</span>
+                {% endif %}
+            </a>
+            <div class="nav-menu">
+                <button class="menu-toggle" id="menu-toggle">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <div class="menu-dropdown" id="menu-dropdown">
+                    <a href="{{ url_for('index') }}" class="menu-item">
+                        <i class="fas fa-home"></i>홈으로
+                    </a>
+                    {% if is_logged_in %}
+                        <a href="{{ url_for('my_history') }}" class="menu-item">
+                            <i class="fas fa-history"></i>내 기록
+                        </a>
+                        <a href="{{ url_for('logout_route') }}" class="menu-item logout">
+                            <i class="fas fa-sign-out-alt"></i>로그아웃
+                        </a>
+                    {% else %}
+                        <a href="{{ url_for('kakao_login') }}" class="menu-item login">
+                            <i class="fas fa-sign-in-alt"></i>카카오 로그인
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+        </header>
+
+        <main>
+            {% if is_admin and admin_info %}
+            <div class="admin-info">
+                <h3><i class="fas fa-shield-alt"></i> 관리자 대시보드</h3>
+                <div class="admin-stats">
+                    <div class="admin-stat-card">
+                        <div class="admin-stat-title">오늘 시스템 사용량</div>
+                        <div class="admin-stat-value">{{ admin_info.system_usage | format_number }}</div>
+                        <div class="admin-stat-subvalue">최대 {{ admin_info.max_usage | format_number }}회</div>
+                        <div class="progress-container">
+                            <div class="progress-bar-admin" style="width: {{ admin_info.percent }}%"></div>
+                        </div>
+                    </div>
+                    <div class="admin-stat-card">
+                        <div class="admin-stat-title">총 가입자 수</div>
+                        <div class="admin-stat-value">{{ admin_info.total_users | format_number }}</div>
+                        <div class="admin-stat-subvalue">누적 회원</div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            
+            <section class="search-section">
+                <form id="youtube-form" action="{{ url_for('fetch_youtube_data') }}" method="post">
+                    <div class="form-group">
+                        <input type="text" id="youtube-url" name="youtube_url" placeholder="YouTube URL을 입력하세요" required>
+                        <button type="submit" class="btn btn-primary">분석하기</button>
+                    </div>
+                    <p class="info-text">분석에는 약 10~20초 정도 소요됩니다.</p>
+                </form>
+                {% if error %}
+                    <div class="error-message">{{ error }}</div>
+                {% endif %}
+            </section>
+
+            <!-- 로딩 오버레이 -->
+            <div id="loading-overlay" class="loading-overlay">
+                <div class="loading-content">
+                    <div class="spinner"></div>
+                    <p>분석 중입니다...</p>
+                    <div class="progress-bar">
+                        <div class="progress-fill"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 사용량 초과 오버레이 -->
+            <div id="usage-limit-overlay" class="usage-limit-overlay">
+                <div class="usage-limit-modal">
+                    <div class="usage-limit-timer" id="usage-limit-timer"></div>
+                    <div class="usage-limit-icon">
+                        <i class="fas fa-gift"></i>
+                    </div>
+                    <h3 class="usage-limit-title">무료로 더 많이 이용하세요!</h3>
+                    <p class="usage-limit-message">
+                        <span class="usage-limit-highlight">카카오 3초만에 가입</span>하시고<br>
+                        <span class="usage-limit-highlight">무료</span>로 이용하세요!
+                    </p>
+                    <button id="kakao-signup-btn" class="usage-limit-button">
+                        <i class="fas fa-user-plus"></i>가입하러 가기
+                    </button>
+                </div>
+            </div>
+
+            {% if video_data and 'error' not in video_data %}
+                <section class="result-section">
+                    <div class="video-info">
+                        <div class="thumbnail-container">
+                            <img src="{{ video_data.thumbnailUrl }}" alt="{{ video_data.title }}" class="thumbnail">
+                        </div>
+                        <div class="info-container">
+                            <h2>{{ video_data.title }}</h2>
+                            <p class="channel">채널: <a href="{{ video_data.channelUrl }}" target="_blank">{{ video_data.channelName }}</a></p>
+                            <p class="stats">
+                                조회수: {{ video_data.viewCount | format_number }} | 
+                                좋아요: {{ video_data.likes | format_number }} | 
+                                댓글: {{ video_data.commentsCount | format_number }} | 
+                                길이: {{ video_data.duration }}
+                            </p>
+                            <p class="date">업로드: {{ video_data.date | format_date }}</p>
+                            
+                            {% if video_data.hashtags %}
+                                <div class="tags">
+                                    {% for tag in video_data.hashtags %}
+                                        <span class="tag">{{ tag }}</span>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="subtitles-section">
+                        <h3>자막</h3>
+                        <div class="subtitles-actions">
+                            <button id="copy-subtitles" class="btn btn-secondary">복사</button>
+                            <button id="download-subtitles" class="btn btn-secondary">다운로드</button>
+                        </div>
+                        <textarea id="subtitles-text" readonly>{{ video_data.subtitles }}</textarea>
+                    </div>
+                </section>
+            {% elif video_data and 'error' in video_data %}
+                <div class="error-message">{{ video_data.error }}</div>
+            {% endif %}
+        </main>
+
+        <footer>
+            <p>&copy; 2025 쇼츠랩.XYZ | 모든 권리 보유.</p>
+        </footer>
+    </div>
+
+    <script>
+        // 메뉴 토글 기능
+        document.getElementById('menu-toggle').addEventListener('click', function() {
+            document.getElementById('menu-dropdown').classList.toggle('show');
+        });
+        
+        // 메뉴 외부 클릭 시 닫기
+        document.addEventListener('click', function(event) {
+            const menu = document.getElementById('menu-dropdown');
+            const toggle = document.getElementById('menu-toggle');
+            if (!toggle.contains(event.target) && !menu.contains(event.target) && menu.classList.contains('show')) {
+                menu.classList.remove('show');
+            }
+        });
+        
+        // 사용량 초과 오버레이 표시 함수
+        function showUsageLimitOverlay() {
+            const overlay = document.getElementById('usage-limit-overlay');
+            overlay.classList.add('show');
+        }
+        
+        // 카카오 가입 버튼 클릭 이벤트
+        document.getElementById('kakao-signup-btn').addEventListener('click', function() {
+            window.location.href = "{{ url_for('kakao_login') }}";
+        });
+        
+        // 에러 메시지가 "일일 사용량을 초과했습니다"를 포함하면 오버레이 표시
+        document.addEventListener('DOMContentLoaded', function() {
+            const errorElement = document.querySelector('.error-message');
+            if (errorElement && errorElement.textContent.includes('일일 사용량을 초과했습니다')) {
+                // 오류 메시지 숨기기
+                errorElement.style.display = 'none';
+                // 약간의 지연 후 오버레이 표시 (페이지 로드 애니메이션을 위해)
+                setTimeout(showUsageLimitOverlay, 500);
+            }
+        });
+        
+        // 카카오 SDK 초기화
+        Kakao.init('{{ kakao_javascript_key }}');
+        
+        // 자막 복사 기능
+        document.getElementById('copy-subtitles')?.addEventListener('click', function() {
+            const subtitlesText = document.getElementById('subtitles-text');
+            subtitlesText.select();
+            document.execCommand('copy');
+            alert('자막이 클립보드에 복사되었습니다.');
+        });
+
+        // 자막 다운로드 기능
+        document.getElementById('download-subtitles')?.addEventListener('click', function(e) {
+            e.preventDefault();
+            
+            const subtitles = document.getElementById('subtitles-text').value;
+            const title = document.querySelector('.info-container h2').textContent;
+            
+            fetch('/download_subtitles', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    subtitles: subtitles,
+                    title: title
+                }),
+            }).then(response => {
+                if (response.ok) {
+                    return response.blob();
+                }
+                throw new Error('다운로드 실패');
+            }).then(blob => {
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = `${title}.txt`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+            }).catch(error => {
+                console.error('다운로드 오류:', error);
+                alert('자막 다운로드 중 오류가 발생했습니다.');
+            });
+        });
+
+        // 로딩 오버레이 관련 함수
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const progressFill = document.querySelector('.progress-fill');
+        
+        function showLoading() {
+            loadingOverlay.classList.add('active');
+            simulateProgress();
+        }
+        
+        function hideLoading() {
+            loadingOverlay.classList.remove('active');
+            progressFill.style.width = '0%';
+        }
+        
+        function simulateProgress() {
+            let progress = 0;
+            const interval = setInterval(() => {
+                progress += 5;
+                // 95%에서 멈추고 실제 완료 시 100%로 설정
+                if (progress >= 95) {
+                    clearInterval(interval);
+                    return;
+                }
+                progressFill.style.width = `${progress}%`;
+            }, 750); // 15초 동안 진행되도록 설정 (750ms * 20 = 15000ms)
+            
+            // 타임아웃으로 30초 후에는 자동으로 숨김
+            setTimeout(() => {
+                clearInterval(interval);
+                hideLoading();
+            }, 30000);
+        }
+
+        document.getElementById('youtube-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const url = document.getElementById('youtube-url').value;
+            if (!url) {
+                alert('YouTube URL을 입력해주세요.');
+                return;
+            }
+            
+            // 로딩 오버레이 표시
+            showLoading();
+            
+            // 폼 제출
+            this.submit();
+        });
+        
+        // 페이지 로드 완료 시 로딩 숨김
+        window.addEventListener('load', function() {
+            hideLoading();
+        });
+    </script>
+</body>
+</html> 
