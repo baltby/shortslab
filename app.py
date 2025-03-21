@@ -13,41 +13,100 @@ import threading
 from functools import wraps
 from collections import deque
 import random
+from sqlalchemy import text
 
 # Flask 앱 생성
 flask_app = Flask(__name__)
 flask_app.secret_key = os.environ.get('SECRET_KEY', 'default_secret_key')
 
+# 데이터베이스 연결 오류 플래그 초기화
+flask_app.config['DB_CONNECTION_ERROR'] = False
+
 # 데이터베이스 설정
-flask_app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///users.db')
+# Replit 환경에서는 절대 경로 사용
+if 'REPLIT_DB_URL' in os.environ:
+    # Replit 환경
+    db_path = os.path.join(os.getcwd(), 'users.db')
+    flask_app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
+else:
+    # 로컬 환경
+    flask_app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///users.db')
 flask_app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+# 데이터베이스 디렉토리 확인 및 생성
+db_uri = flask_app.config['SQLALCHEMY_DATABASE_URI']
+if db_uri.startswith('sqlite:///'):
+    db_path = db_uri.replace('sqlite:///', '')
+    if not db_path.startswith('/'):  # 상대 경로인 경우
+        db_path = os.path.join(os.getcwd(), db_path)
+    
+    # 데이터베이스 디렉토리 확인
+    db_dir = os.path.dirname(db_path)
+    if db_dir and not os.path.exists(db_dir):
+        try:
+            os.makedirs(db_dir)
+            print(f"데이터베이스 디렉토리 생성: {db_dir}")
+        except Exception as e:
+            print(f"데이터베이스 디렉토리 생성 실패: {str(e)}")
+            flask_app.config['DB_CONNECTION_ERROR'] = True
+
 # 데이터베이스 초기화
-db.init_app(flask_app)
+try:
+    db.init_app(flask_app)
+    print("데이터베이스 초기화 성공")
+except Exception as e:
+    print(f"데이터베이스 초기화 실패: {str(e)}")
+    flask_app.config['DB_CONNECTION_ERROR'] = True
 
 # 데이터베이스 테이블 생성
-with flask_app.app_context():
-    # 기존 테이블 구조 확인
-    try:
-        # created_at 컬럼이 없는지 확인
-        db.engine.execute("SELECT created_at FROM user LIMIT 1")
-        print("created_at 컬럼이 이미 존재합니다.")
-    except:
-        # created_at 컬럼 추가
+try:
+    with flask_app.app_context():
+        # 디버그 정보 출력
+        print(f"데이터베이스 URI: {flask_app.config['SQLALCHEMY_DATABASE_URI']}")
+        print(f"현재 작업 디렉토리: {os.getcwd()}")
+        
+        # 데이터베이스 테이블 생성
         try:
-            print("created_at 컬럼 추가 중...")
-            db.engine.execute("ALTER TABLE user ADD COLUMN created_at DATETIME")
-            db.engine.execute("UPDATE user SET created_at = CURRENT_TIMESTAMP")
-            print("created_at 컬럼 추가 완료")
+            # 모든 테이블 생성
+            db.create_all()
+            print("모든 데이터베이스 테이블 생성 완료")
+            
+            # 기존 테이블 구조 확인
+            try:
+                # created_at 컬럼이 없는지 확인 (SQLAlchemy 2.0 호환 방식)
+                with db.engine.connect() as conn:
+                    try:
+                        conn.execute(text("SELECT created_at FROM user LIMIT 1"))
+                        print("created_at 컬럼이 이미 존재합니다.")
+                    except Exception as e:
+                        # 테이블이 존재하지만 created_at 컬럼이 없는 경우
+                        if "no such column" in str(e).lower():
+                            try:
+                                print("created_at 컬럼 추가 중...")
+                                conn.execute(text("ALTER TABLE user ADD COLUMN created_at DATETIME"))
+                                conn.execute(text("UPDATE user SET created_at = CURRENT_TIMESTAMP"))
+                                conn.commit()
+                                print("created_at 컬럼 추가 완료")
+                            except Exception as e2:
+                                print(f"created_at 컬럼 추가 실패: {str(e2)}")
+                        else:
+                            print(f"테이블 구조 확인 중 오류 발생: {str(e)}")
+            except Exception as e:
+                print(f"테이블 구조 확인 중 오류 발생: {str(e)}")
+            
+            # 만료된 사용량 기록 삭제
+            try:
+                reset_expired_usage()
+            except Exception as e:
+                print(f"만료된 사용량 기록 삭제 실패: {str(e)}")
+        
         except Exception as e:
-            print(f"created_at 컬럼 추가 실패: {str(e)}")
-    
-    # 모든 테이블 생성
-    db.create_all()
-    print("모든 데이터베이스 테이블 생성 완료")
-    
-    # 만료된 사용량 기록 삭제
-    reset_expired_usage()
+            print(f"데이터베이스 테이블 생성 실패: {str(e)}")
+            # 데이터베이스 연결 오류 플래그 설정
+            flask_app.config['DB_CONNECTION_ERROR'] = True
+except Exception as e:
+    print(f"앱 컨텍스트 생성 실패: {str(e)}")
+    flask_app.config['DB_CONNECTION_ERROR'] = True
 
 # 요청 제한 설정
 REQUEST_QUEUE = deque()
@@ -163,41 +222,55 @@ def download_subtitles():
         
     except Exception as e:
         print(f"다운로드 오류: {str(e)}")
-        return jsonify({"error": f"다운로드 중 오류가 발생했습니다: {str(e)}"}), 500
+        return jsonify({"error": "다운로드 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."}), 500
 
 # 메인 페이지 라우트
 @flask_app.route('/')
 def index():
+    # 오류 파라미터 확인
+    error = request.args.get('error')
+    
+    # 데이터베이스 연결 오류 확인
+    if flask_app.config.get('DB_CONNECTION_ERROR', False):
+        error = "데이터베이스 연결에 실패했습니다."
+    
     # 클라이언트 IP 가져오기
     ip_address = request.remote_addr
     
     # 로그인 상태 확인
-    is_logged_in = 'user_id' in session
+    is_logged_in = False
     is_admin = False
-    
-    # 사용자 정보 및 관리자 확인
-    if is_logged_in:
-        user_id = session['user_id']
-        user = User.query.get(user_id)
-        if user:
-            is_admin = is_admin_user(user.decrypted_kakao_id)
-    
-    # 관리자용 시스템 정보
     admin_info = None
-    if is_admin:
-        system_usage = get_system_usage()
-        total_users = get_total_users_count()
-        admin_info = {
-            'system_usage': system_usage,
-            'max_usage': MAX_SYSTEM_USAGE_PER_DAY,
-            'total_users': total_users,
-            'percent': min(100, int(system_usage / MAX_SYSTEM_USAGE_PER_DAY * 100))
-        }
+    
+    try:
+        # 데이터베이스 연결 시도
+        is_logged_in = 'user_id' in session
+        
+        # 사용자 정보 및 관리자 확인
+        if is_logged_in:
+            user_id = session['user_id']
+            user = User.query.get(user_id)
+            if user:
+                is_admin = is_admin_user(user.decrypted_kakao_id)
+        
+        # 관리자용 시스템 정보
+        if is_admin:
+            system_usage = get_system_usage()
+            total_users = get_total_users_count()
+            admin_info = {
+                'system_usage': system_usage,
+                'max_usage': MAX_SYSTEM_USAGE_PER_DAY,
+                'total_users': total_users,
+                'percent': min(100, int(system_usage / MAX_SYSTEM_USAGE_PER_DAY * 100))
+            }
+    except Exception as e:
+        print(f"데이터베이스 연결 오류: {str(e)}")
+        error = "데이터베이스 연결에 실패했습니다."
     
     # 카카오 JavaScript 키 가져오기
     kakao_javascript_key = os.environ.get('KAKAO_JAVASCRIPT_KEY', '')
     
-    return render_template('index.html', is_logged_in=is_logged_in, is_admin=is_admin, admin_info=admin_info, kakao_javascript_key=kakao_javascript_key)
+    return render_template('index.html', is_logged_in=is_logged_in, is_admin=is_admin, admin_info=admin_info, kakao_javascript_key=kakao_javascript_key, error=error)
 
 # 요청 전 미들웨어
 @flask_app.before_request
@@ -209,6 +282,28 @@ def before_request():
         if session.get('last_cleanup_date') != today:
             reset_expired_usage()
             session['last_cleanup_date'] = today
+
+# 유튜브 데이터 가져오기 함수
+def get_youtube_data(url):
+    try:
+        # URL에서 비디오 ID 추출
+        video_id = extract_video_id(url)
+        if not video_id:
+            return {"error": "유효한 YouTube URL이 아닙니다."}
+        
+        # Apify API 호출
+        try:
+            api_result = fetch_from_apify(video_id)
+            return api_result
+        except Exception as e:
+            # API 오류 로깅 (민감한 정보는 로그에만 기록)
+            print(f"Apify API 오류: {str(e)}")
+            return {"error": "영상 정보를 가져오는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."}
+    
+    except Exception as e:
+        # 일반 오류 로깅 (민감한 정보는 로그에만 기록)
+        print(f"YouTube 데이터 가져오기 오류: {str(e)}")
+        return {"error": "영상 정보를 처리하는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."}
 
 # YouTube 데이터 가져오기 라우트
 @flask_app.route('/get_youtube_data', methods=['POST', 'GET'])
@@ -358,11 +453,15 @@ def kakao_login():
 @flask_app.route('/login/kakao/callback')
 def kakao_callback():
     try:
+        # 데이터베이스 연결 오류 확인
+        if flask_app.config.get('DB_CONNECTION_ERROR', False):
+            return redirect(url_for('index', error="데이터베이스 연결에 실패했습니다."))
+            
         # 오류 파라미터 확인
         error = request.args.get('error')
         if error:
             print(f"카카오 로그인 오류: {error}")
-            return redirect(url_for('index', error=f"카카오 로그인 오류: {error}"))
+            return redirect(url_for('index', error="카카오 로그인 중 오류가 발생했습니다."))
         
         # 인증 코드 가져오기
         code = request.args.get('code')
@@ -387,7 +486,7 @@ def kakao_callback():
         # 토큰 요청 실패 시 홈페이지로 리다이렉트
         if token_response.status_code != 200:
             print(f"토큰 요청 실패: {token_response.status_code}, {token_response.text}")
-            return redirect(url_for('index', error="토큰 요청에 실패했습니다."))
+            return redirect(url_for('index', error="로그인 처리 중 오류가 발생했습니다."))
         
         # 토큰 정보 가져오기
         token_info = token_response.json()
@@ -407,45 +506,45 @@ def kakao_callback():
         # 사용자 정보 요청 실패 시 홈페이지로 리다이렉트
         if user_info_response.status_code != 200:
             print(f"사용자 정보 요청 실패: {user_info_response.status_code}, {user_info_response.text}")
-            return redirect(url_for('index', error="사용자 정보 요청에 실패했습니다."))
+            return redirect(url_for('index', error="로그인 처리 중 오류가 발생했습니다."))
         
         # 사용자 정보 가져오기
         user_info = user_info_response.json()
-        print(f"사용자 정보: {json.dumps(user_info, indent=2)}")
+        print(f"사용자 정보 수신 완료")
         kakao_id = str(user_info.get('id'))
         nickname = user_info.get('properties', {}).get('nickname')
         
         # 데이터베이스 연결 확인
         try:
-            db.session.execute("SELECT 1")
+            with db.engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
         except Exception as db_error:
             print(f"데이터베이스 연결 오류: {str(db_error)}")
+            flask_app.config['DB_CONNECTION_ERROR'] = True
             return redirect(url_for('index', error="데이터베이스 연결에 실패했습니다."))
         
         # 사용자 조회 또는 생성
-        user = get_user_by_kakao_id(kakao_id)
-        print(f"기존 사용자 조회 결과: {user}")
-        if not user:
-            print(f"새 사용자 생성: {kakao_id}, {nickname}")
-            user = create_user(kakao_id, nickname)
-        
-        # 세션에 사용자 정보 저장
-        session['user_id'] = user.id
-        session['nickname'] = user.decrypted_nickname
+        try:
+            user = get_user_by_kakao_id(kakao_id)
+            print(f"기존 사용자 조회 완료")
+            if not user:
+                print(f"새 사용자 생성 시작")
+                user = create_user(kakao_id, nickname)
+            
+            # 세션에 사용자 정보 저장
+            session['user_id'] = user.id
+            session['nickname'] = user.decrypted_nickname
+            
+            # 홈페이지로 리다이렉트
+            return redirect(url_for('index'))
+        except Exception as e:
+            print(f"사용자 처리 오류: {str(e)}")
+            db.session.rollback()
+            return redirect(url_for('index', error="로그인 처리 중 오류가 발생했습니다."))
+    
     except Exception as e:
         print(f"카카오 로그인 처리 중 오류 발생: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        
-        # 오류 메시지 상세화
-        error_message = str(e)
-        if "no such column" in error_message:
-            error_message = "데이터베이스 스키마 오류입니다. 관리자에게 문의하세요."
-        
-        return redirect(url_for('index', error=f"로그인 처리 중 오류가 발생했습니다: {error_message}"))
-    
-    # 홈페이지로 리다이렉트
-    return redirect(url_for('index'))
+        return redirect(url_for('index', error="로그인 처리 중 오류가 발생했습니다."))
 
 # 로그아웃 라우트
 @flask_app.route('/logout')
@@ -565,4 +664,4 @@ def view_analysis(log_id):
 if __name__ == '__main__':
     # 환경 변수에서 포트 가져오기 (없으면 7777 사용)
     port = int(os.environ.get('PORT', 7777))
-    flask_app.run(host='0.0.0.0', port=port, debug=True) 
+    flask_app.run(host='0.0.0.0', port=port, debug=True)

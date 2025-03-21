@@ -34,7 +34,8 @@ def get_youtube_data(url):
     
     try:
         # API 직접 호출 (비동기 실행)
-        print(f"API URL: {api_url}")
+        # 디버그 정보는 로그에만 기록
+        print(f"API 호출 시작: {long_form_url}")
         
         # 헤더 설정
         headers = {
@@ -50,15 +51,15 @@ def get_youtube_data(url):
             timeout=60  # 타임아웃 60초로 설정
         )
         
-        print(f"Response status: {response.status_code}")
-        print(f"Response content: {response.text[:200]}...")
+        # 디버그 정보는 로그에만 기록
+        print(f"API 응답 상태: {response.status_code}")
         
         # 응답 확인
         response.raise_for_status()
         
         # 실행 ID 가져오기
         run_id = response.json()["data"]["id"]
-        print(f"Run ID: {run_id}")
+        print(f"실행 ID: {run_id}")
         
         # 실행 완료 대기
         status_url = f"{APIFY_BASE_URL}/acts/{actor_id_encoded}/runs/{run_id}"
@@ -78,7 +79,7 @@ def get_youtube_data(url):
             
             # 응답 확인
             if status_response.status_code != 200:
-                print(f"상태 확인 오류: {status_response.status_code}, {status_response.text}")
+                print(f"상태 확인 오류: {status_response.status_code}")
                 continue
             
             # 상태 확인
@@ -91,11 +92,11 @@ def get_youtube_data(url):
             
             # 실패 확인
             if status in ["FAILED", "ABORTED", "TIMED_OUT"]:
-                return {"error": f"YouTube 데이터 추출에 실패했습니다. (상태: {status})"}
+                return {"error": "영상 정보를 가져오는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."}
         
         # 데이터셋 ID 가져오기
         dataset_id = status_response.json()["data"]["defaultDatasetId"]
-        print(f"Dataset ID: {dataset_id}")
+        print(f"데이터셋 ID: {dataset_id}")
         
         # 데이터셋 항목 가져오기
         dataset_url = f"{APIFY_BASE_URL}/datasets/{dataset_id}/items"
@@ -105,7 +106,7 @@ def get_youtube_data(url):
             timeout=30
         )
         
-        print(f"Dataset response status: {dataset_response.status_code}")
+        print(f"데이터셋 응답 상태: {dataset_response.status_code}")
         
         # 응답 확인
         dataset_response.raise_for_status()
@@ -114,15 +115,15 @@ def get_youtube_data(url):
         return dataset_response.json()
     except requests.exceptions.RequestException as e:
         print(f"API 호출 오류: {str(e)}")
-        return {"error": f"API 호출 중 오류 발생: {str(e)}"}
+        return {"error": "영상 정보를 가져오는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."}
     except json.JSONDecodeError as e:
         print(f"JSON 파싱 오류: {str(e)}")
-        return {"error": "응답을 JSON으로 파싱할 수 없습니다."}
+        return {"error": "영상 정보를 처리하는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."}
     except Exception as e:
         print(f"예상치 못한 오류: {str(e)}")
         import traceback
         traceback.print_exc()
-        return {"error": f"예상치 못한 오류 발생: {str(e)}"}
+        return {"error": "영상 정보를 처리하는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."}
 
 def extract_video_data(data):
     """API 응답에서 필요한 비디오 데이터 추출"""
@@ -178,4 +179,4 @@ def get_video_title_from_id(video_id):
         return f"비디오 {video_id}"
     except Exception as e:
         print(f"비디오 제목 가져오기 오류: {str(e)}")
-        return f"비디오 {video_id}" 
+        return f"비디오 {video_id}"

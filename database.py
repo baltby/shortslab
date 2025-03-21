@@ -6,27 +6,34 @@ import os
 import base64
 import json
 
-# 암호화 키 생성 또는 로드
+# 암호화 키 가져오기 (config.py에서 로드)
 def get_encryption_key():
-    key = ENCRYPTION_KEY
-    if not key:
-        # 환경 변수에 키가 없으면 파일에서 로드
-        key_file = os.path.join(os.path.dirname(__file__), '.encryption_key')
-        if os.path.exists(key_file):
-            with open(key_file, 'rb') as f:
-                key = f.read().decode('utf-8')
-        else:
-            # 새 키 생성
-            key = Fernet.generate_key().decode('utf-8')
-            # 키 파일 저장
-            with open(key_file, 'wb') as f:
-                f.write(key.encode('utf-8'))
-            # 파일 권한 설정 (소유자만 읽기/쓰기 가능)
-            os.chmod(key_file, 0o600)
-    return key
+    if not ENCRYPTION_KEY:
+        print("경고: ENCRYPTION_KEY가 설정되지 않았습니다. 기본 키를 사용합니다.")
+        return 'RmVybmV0IGtleSBnZW5lcmF0ZWQgZm9yIHNob3J0c2xhYg=='
+    return ENCRYPTION_KEY
 
 # 암호화 객체 생성
-cipher_suite = Fernet(get_encryption_key().encode())
+try:
+    key = get_encryption_key().encode()
+    # 키 길이 확인 (Fernet 키는 32바이트여야 함)
+    if len(base64.urlsafe_b64decode(key + b'=' * (-len(key) % 4))) != 32:
+        print("경고: 암호화 키 길이가 올바르지 않습니다. 기본 키를 사용합니다.")
+        key = 'RmVybmV0IGtleSBnZW5lcmF0ZWQgZm9yIHNob3J0c2xhYg=='.encode()
+    cipher_suite = Fernet(key)
+    print("암호화 객체 생성 성공")
+except Exception as e:
+    print(f"암호화 객체 생성 실패: {str(e)}")
+    # 기본 키로 다시 시도
+    try:
+        default_key = 'RmVybmV0IGtleSBnZW5lcmF0ZWQgZm9yIHNob3J0c2xhYg=='
+        cipher_suite = Fernet(default_key.encode())
+        print("기본 키로 암호화 객체 생성 성공")
+    except Exception as e:
+        print(f"기본 키로 암호화 객체 생성 실패: {str(e)}")
+        # 마지막 수단으로 새 키 생성
+        cipher_suite = Fernet(Fernet.generate_key())
+        print("새 키로 암호화 객체 생성 성공")
 
 # 암호화 함수
 def encrypt_data(data):
@@ -41,7 +48,7 @@ def decrypt_data(encrypted_data):
     try:
         return cipher_suite.decrypt(encrypted_data.encode('utf-8')).decode('utf-8')
     except Exception as e:
-        print(f"복호화 오류: {str(e)}")
+        print(f"복호화 실패: {str(e)}")
         return None
 
 # 데이터베이스 객체 초기화
