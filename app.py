@@ -286,20 +286,9 @@ def before_request():
 # 유튜브 데이터 가져오기 함수
 def get_youtube_data(url):
     try:
-        # URL에서 비디오 ID 추출
-        video_id = extract_video_id(url)
-        if not video_id:
-            return {"error": "유효한 YouTube URL이 아닙니다."}
-        
-        # Apify API 호출
-        try:
-            api_result = fetch_from_apify(video_id)
-            return api_result
-        except Exception as e:
-            # API 오류 로깅 (민감한 정보는 로그에만 기록)
-            print(f"Apify API 오류: {str(e)}")
-            return {"error": "영상 정보를 가져오는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."}
-    
+        # youtube_scraper.py에서 정의된 함수 사용
+        from youtube_scraper import get_youtube_data as scraper_get_youtube_data
+        return scraper_get_youtube_data(url)
     except Exception as e:
         # 일반 오류 로깅 (민감한 정보는 로그에만 기록)
         print(f"YouTube 데이터 가져오기 오류: {str(e)}")
