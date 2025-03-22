@@ -531,15 +531,6 @@
                         </div>
                         <div class="info-container">
                             <h2>{{ video_data.title }}</h2>
-                            <p class="channel">채널: <a href="{{ video_data.channelUrl }}" target="_blank">{{ video_data.channelName }}</a></p>
-                            <p class="stats">
-                                조회수: {{ video_data.viewCount | format_number }} | 
-                                좋아요: {{ video_data.likes | format_number }} | 
-                                댓글: {{ video_data.commentsCount | format_number }} | 
-                                길이: {{ video_data.duration }}
-                            </p>
-                            <p class="date">업로드: {{ video_data.date | format_date }}</p>
-                            
                             {% if video_data.hashtags %}
                                 <div class="tags">
                                     {% for tag in video_data.hashtags %}

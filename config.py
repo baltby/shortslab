@@ -27,7 +27,7 @@ KAKAO_REDIRECT_URI = os.getenv('KAKAO_REDIRECT_URI', 'http://localhost:7777/logi
 
 # 사용 제한 설정
 MAX_USAGE_PER_DAY = int(os.getenv('MAX_USAGE_PER_DAY', 10))
-MAX_USAGE_NON_LOGIN = 1
+MAX_USAGE_NON_LOGIN = 3
 MAX_SYSTEM_USAGE_PER_DAY = int(os.getenv('MAX_SYSTEM_USAGE_PER_DAY', 500))
 
 # 암호화 설정
@@ -63,3 +63,10 @@ else:
             # 기본 키 설정
             ENCRYPTION_KEY = 'RmVybmV0IGtleSBnZW5lcmF0ZWQgZm9yIHNob3J0c2xhYg=='
             print("기본 암호화 키 사용")
+
+# 스마트프록시 설정
+USE_PROXY = os.getenv('USE_PROXY', 'False').lower() == 'true'
+PROXY_USERNAME = os.getenv('PROXY_USERNAME', '')
+PROXY_PASSWORD = os.getenv('PROXY_PASSWORD', '')
+PROXY_HOST = os.getenv('PROXY_HOST', 'gate.smartproxy.com')
+PROXY_PORT = os.getenv('PROXY_PORT', '10001')

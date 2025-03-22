@@ -6,7 +6,7 @@ import tempfile
 from datetime import datetime, timedelta, date
 from youtube_scraper import get_youtube_data, extract_video_data
 from database import get_db, User, UsageLog, db, get_user_by_kakao_id, create_user, get_user_logs, count_user_logs, delete_oldest_log, save_video_analysis, get_video_analysis, get_video_analysis_by_url, get_daily_usage, increment_daily_usage, reset_expired_usage, get_system_usage, increment_system_usage, check_system_usage_limit, is_admin_user, get_total_users_count
-from config import KAKAO_REST_API_KEY, KAKAO_REDIRECT_URI, KAKAO_CLIENT_SECRET, MAX_SYSTEM_USAGE_PER_DAY
+from config import KAKAO_REST_API_KEY, KAKAO_REDIRECT_URI, KAKAO_CLIENT_SECRET, MAX_SYSTEM_USAGE_PER_DAY, MAX_USAGE_NON_LOGIN
 import requests
 import time
 import threading
@@ -340,7 +340,7 @@ def fetch_youtube_data():
         max_usage = 10  # 로그인 사용자는 10회 제한
     else:
         usage_count = get_daily_usage(ip_address=ip_address)
-        max_usage = 1   # 비로그인 사용자는 1회 제한
+        max_usage = MAX_USAGE_NON_LOGIN   # 비로그인 사용자는 config.py에 정의된 횟수로 제한
     
     # 관리자용 시스템 정보
     admin_info = None
